@@ -394,22 +394,7 @@
             }
         };
 
-        async function api(act, pl, isLogin = false) {
-            try {
-                const res = await fetch(GAS_URL, { method: "POST", body: JSON.stringify({ token: TOKEN, action: act, ...pl }) });
-                const json = await res.json();
-                if(json.status === "error") {
-                    if(isLogin) throw new Error(json.message);
-                    alert("오류: " + json.message); 
-                    return null;
-                }
-                return json.data;
-            } catch(e) { 
-                if(isLogin) throw e; 
-                alert("통신 오류: " + e.message); 
-                return null; 
-            }
-        }
+        async function ap
 
         function goTab(id) {
             document.querySelectorAll('.section').forEach(e => e.style.display = 'none');
