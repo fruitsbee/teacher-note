@@ -362,36 +362,55 @@
         const GAS_URL = "https://script.google.com/macros/s/AKfycbyaJQEqG8i2MOYy0lYnitj-ZLdJNSjIHj_bAUIvDzeKSH-Xp6q4Xnj_d1exdWt6chhazQ/exec"; 
         let TOKEN = "";
 
-        // [핵심] 로그인 처리 및 통신 로직 (문법 오류 수정됨)
-        window.handleCredentialResponse = async function(res) {
-            console.log("🚀 [1] 구글 로그인 성공! 토큰 수신 완료.");
-            TOKEN = res.credential;
-            
-            document.getElementById("g_btn_wrapper").style.display = "none";
-            document.getElementById("login-loading").style.display = "block";
+        // 기존 handleCredentialResponse 함수를 이걸로 교체하세요
+window.handleCredentialResponse = async function(res) {
+    console.log("🚀 [1] 구글 로그인 성공! 토큰 수신 완료.");
+    TOKEN = res.credential;
+    
+    // 로딩 표시
+    document.getElementById("g_btn_wrapper").style.display = "none";
+    document.getElementById("login-loading").style.display = "block";
 
-            try {
-                console.log("🚀 [2] GAS 서버로 로그인 요청 전송 중...");
-                const userData = await api("login", {}, true);
+    try {
+        console.log("🚀 [2] GAS 서버로 로그인 요청 전송 중...");
+        // 여기서 401 에러가 나면 catch 블록으로 이동합니다.
+        const userData = await api("login", {}, true); 
 
-                if (userData) {
-                    console.log("✅ [4] 로그인 성공! 사용자 데이터 수신:", userData);
-                    document.getElementById("login-screen").style.display = "none";
-                    document.getElementById("app-screen").style.display = "flex";
-                    document.getElementById("user-badge").innerText = userData.name + " 선생님";
-                    
-                    showToast(`환영합니다, ${userData.name} 선생님!`);
-                    loadStudentListForAutocomplete();
-                    checkApiKeyStatus();
-                } else {
-                    throw new Error("서버에서 사용자 정보를 받아오지 못했습니다.");
-                }
-            } catch (e) {
-                console.error("❌ 로그인 실패:", e);
-                alert("로그인 중 문제가 발생했습니다.\n" + e.message);
-                location.reload(); 
-            }
-        };
+        if (userData) {
+            // ... (성공 시 로직은 기존과 동일) ...
+            console.log("✅ [4] 로그인 성공!");
+            document.getElementById("login-screen").style.display = "none";
+            document.getElementById("app-screen").style.display = "flex";
+            document.getElementById("user-badge").innerText = userData.name + " 선생님";
+            showToast(`환영합니다, ${userData.name} 선생님!`);
+            loadStudentListForAutocomplete();
+            checkApiKeyStatus();
+        }
+    } catch (e) {
+        console.error("❌ 로그인 실패 (권한 문제 가능성):", e);
+        
+        // ★ 여기가 핵심입니다! 권한 오류 시 버튼 보여주기 ★
+        document.getElementById("login-loading").style.display = "none";
+        
+        // 로그인 카드 내용을 '연동 안내'로 변경
+        const card = document.querySelector(".login-card");
+        card.innerHTML = `
+            <i class="fas fa-shield-alt" style="font-size: 3rem; color: #E67E22; margin-bottom: 20px;"></i>
+            <h2 style="margin: 0 0 10px 0; color: var(--primary);">최초 권한 승인 필요</h2>
+            <p style="color: var(--text-sub); margin-bottom: 20px; font-size: 0.9rem; line-height:1.5;">
+                선생님의 구글 드라이브에 데이터를 저장하기 위해<br>
+                <strong>최초 1회 권한 승인</strong>이 필요합니다.
+            </p>
+            <button class="btn btn-primary" onclick="window.open('${GAS_URL}', '_blank');">
+                <i class="fas fa-external-link-alt"></i> 권한 승인하러 가기
+            </button>
+            <p style="margin-top: 15px; font-size: 0.8rem; color: #999;">
+                새 창에서 [권한 검토] -> [허용]을 완료한 후,<br>
+                다시 이 페이지를 <strong>새로고침</strong> 해주세요.
+            </p>
+        `;
+    }
+};
 
         // [핵심] API 통신 함수 (CORS 회피용 text/plain 설정 적용)
         async function api(act, pl, isLogin = false) {
