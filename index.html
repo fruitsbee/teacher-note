@@ -10,7 +10,6 @@
     
     <style>
         :root {
-            /* Warm & Professional Color Palette */
             --bg-color: #F9F9F7;
             --sidebar-bg: #2C3E50;
             --sidebar-text: #ECF0F1;
@@ -136,7 +135,6 @@
         #toast-container.show { opacity: 1; bottom: 90px; }
         .loading-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); display: none; align-items: center; justify-content: center; z-index: 10; border-radius: 12px; font-weight: bold; color: var(--primary); }
 
-        /* [신규] 설정 탭 스타일 */
         .api-status-box { padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center; font-weight: bold; }
         .status-ok { background: #E8F8F5; color: #27AE60; border: 1px solid #27AE60; }
         .status-no { background: #FDEDEC; color: #C0392B; border: 1px solid #C0392B; }
@@ -240,7 +238,6 @@
                                 <li><strong>여러 명</strong>은 쉼표(,)로 구분해서 입력하세요.<br>(예: 김철수, 이영희)</li>
                                 <li><strong>**이름**</strong> 처럼 별표로 감싸면 AI에게 비밀로 전달됩니다.</li>
                                 <li>파일을 업로드하면 자동으로 내용을 채워줍니다.</li>
-                                <li>녹음 또는 직접 입력 시 중요한 정보는 자동으로 비밀로 처리됩니다..</li>
                             </ul>
                         </div>
                     </div>
@@ -294,7 +291,6 @@
                 </div>
             </div>
 
-            <!-- [신규] 설정 탭 -->
             <div id="tab-settings" class="section" style="display:none;">
                 <h2 class="page-title">환경 설정</h2>
                 <div class="split-view">
@@ -359,9 +355,76 @@
     <div id="toast-container">메시지 내용</div>
 
     <script>
-        // ★ 선생님의 GAS URL로 반드시 교체하세요 ★
-        const GAS_URL = "https://script.google.com/macros/s/AKfycbyaJQEqG8i2MOYy0lYnitj-ZLdJNSjIHj_bAUIvDzeKSH-Xp6q4Xnj_d1exdWt6chhazQ/exec"; 
+        // ★ 선생님의 GAS 웹 앱 URL (반드시 /exec로 끝나는지 확인하세요) ★
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbxSN13JeSbxS7JM-LKn7pG8yHtJDbjnuggeanYs8566_kr6-TxFiaB2ghk6ARdkfWs/exec"; 
         let TOKEN = "";
+
+        // [핵심] 로그인 처리 및 통신 로직 (문법 오류 수정됨)
+        window.handleCredentialResponse = async function(res) {
+            console.log("🚀 [1] 구글 로그인 성공! 토큰 수신 완료.");
+            TOKEN = res.credential;
+            
+            document.getElementById("g_btn_wrapper").style.display = "none";
+            document.getElementById("login-loading").style.display = "block";
+
+            try {
+                console.log("🚀 [2] GAS 서버로 로그인 요청 전송 중...");
+                const userData = await api("login", {}, true);
+
+                if (userData) {
+                    console.log("✅ [4] 로그인 성공! 사용자 데이터 수신:", userData);
+                    document.getElementById("login-screen").style.display = "none";
+                    document.getElementById("app-screen").style.display = "flex";
+                    document.getElementById("user-badge").innerText = userData.name + " 선생님";
+                    
+                    showToast(`환영합니다, ${userData.name} 선생님!`);
+                    loadStudentListForAutocomplete();
+                    checkApiKeyStatus();
+                } else {
+                    throw new Error("서버에서 사용자 정보를 받아오지 못했습니다.");
+                }
+            } catch (e) {
+                console.error("❌ 로그인 실패:", e);
+                alert("로그인 중 문제가 발생했습니다.\n" + e.message);
+                location.reload(); 
+            }
+        };
+
+        // [핵심] API 통신 함수 (CORS 회피용 text/plain 설정 적용)
+        async function api(act, pl, isLogin = false) {
+            try {
+                // headers를 제거하여 Simple Request로 전송
+                const res = await fetch(GAS_URL, { 
+                    method: "POST", 
+                    body: JSON.stringify({ token: TOKEN, action: act, ...pl })
+                });
+
+                // GAS의 리다이렉트 응답을 텍스트로 받아서 JSON 파싱
+                const text = await res.text();
+                
+                // HTML 에러 페이지가 반환되었는지 확인
+                if (text.trim().startsWith("<")) {
+                    console.error("❌ 서버가 HTML을 반환했습니다. 스크립트 에러일 수 있습니다.", text);
+                    throw new Error("서버 내부 오류 (GAS 스크립트 확인 필요)");
+                }
+
+                const json = JSON.parse(text);
+
+                if(json.status === "error") {
+                    if(isLogin) throw new Error(json.message);
+                    alert("오류: " + json.message); 
+                    return null;
+                }
+                return json.data;
+            } catch(e) { 
+                if(isLogin) throw e; 
+                console.error("통신 오류 상세:", e);
+                alert("통신 오류: " + e.message); 
+                return null; 
+            }
+        }
+
+        // --- 기타 UI 함수들 ---
 
         function handleResize(el) {
             el.style.height = 'auto'; 
@@ -369,32 +432,6 @@
             if (el.clientHeight < el.scrollHeight) el.style.overflowY = 'auto';
             else el.style.overflowY = 'hidden';
         }
-
-        window.handleCredentialResponse = async function(res) {
-            TOKEN = res.credential;
-            document.getElementById("g_btn_wrapper").style.display = "none";
-            document.getElementById("login-loading").style.display = "block";
-
-            try {
-                const userData = await api("login", {}, true);
-                if (userData) {
-                    document.getElementById("login-screen").style.display = "none";
-                    document.getElementById("app-screen").style.display = "flex";
-                    document.getElementById("user-badge").innerText = userData.name + " 선생님";
-                    showToast(`환영합니다, ${userData.name} 선생님!`);
-                    
-                    loadStudentListForAutocomplete();
-                    checkApiKeyStatus(); // 로그인 시 API 키 상태 확인
-                } else {
-                    throw new Error("로그인 실패");
-                }
-            } catch (e) {
-                alert("🚫 접근 권한이 없거나 설정 오류입니다.\n" + e.message);
-                location.reload(); 
-            }
-        };
-
-        async function ap
 
         function goTab(id) {
             document.querySelectorAll('.section').forEach(e => e.style.display = 'none');
@@ -427,8 +464,6 @@
             datalist.innerHTML = names.map(n => `<option value="${n}">`).join('');
         }
 
-        // --- [신규] 설정 관련 함수 ---
-
         async function checkApiKeyStatus() {
             const box = document.getElementById("api-status");
             const res = await api("checkApiKey", {});
@@ -459,8 +494,6 @@
             const res = await api("getDataSheetUrl", {});
             if(res && res.url) window.open(res.url, "_blank");
         }
-
-        // --- 기존 기능 ---
 
         async function search() {
             const name = document.getElementById("s-input").value.trim();
